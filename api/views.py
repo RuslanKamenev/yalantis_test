@@ -8,7 +8,7 @@ import re
 import datetime
 
 
-# Create your views here.
+# Работа со всеми водителями, добавление водителя.
 class DriversView(APIView):
     http_method_names = ['get', 'post']
     DATE_VALIDATION_REGEX = '(3[01]|[12][0-9]|0?[1-9])-(1[0-2]|0?[1-9])-([0-9]{4})$'
@@ -25,7 +25,7 @@ class DriversView(APIView):
                 serializer = DriverNameSerializer(queryset, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
-                return Response({'error': 'Дата поиска введена неправильно'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Дата поиска введена неправильно, требуемый формат даты d-m-Y'}, status=status.HTTP_400_BAD_REQUEST)
 
         if 'created_at__lte' in request.query_params:
             if re.search(self.DATE_VALIDATION_REGEX, request.query_params['created_at__lte']):
@@ -35,7 +35,7 @@ class DriversView(APIView):
                 serializer = DriverNameSerializer(queryset, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
-                return Response({'error': 'Дата поиска введена неправильно'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Дата поиска введена неправильно, требуемый формат даты d-m-Y'}, status=status.HTTP_400_BAD_REQUEST)
 
         else:
             queryset = Driver.objects.all()
@@ -56,7 +56,7 @@ class DriversView(APIView):
         else:
             return Response({'error': 'Неправильно введены поля'}, status=status.HTTP_400_BAD_REQUEST)
 
-
+# Работа с конкретным водителем: получение/удаление/обновление данных
 class DriverView(APIView):
     http_method_names = ['get', 'update', 'delete']
 
@@ -95,3 +95,34 @@ class DriverView(APIView):
             return Response({'success': f"Водитель с id={pk} успешно удален"}, status=status.HTTP_200_OK)
         else:
             return Response({'error': f"Водитель с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VehiclesView(APIView):
+    http_method_names = ['get']
+
+# Возвращает весь список автомобилей
+# Если в качестве URL параметра указан with_drivers=yes, автомобилей с водителями
+# Если в качестве URL параметра указан with_drivers=yes, автомобилей без водителя
+    def get(self, request):
+        if 'with_drivers' in request.query_params:
+            search_parameter = request.query_params['with_drivers'].strip()
+            if search_parameter == 'yes':
+                queryset = Vehicle.objects.filter(driver_id__isnull=False)
+                sanitizer = VehicleFullInfoSerializer(queryset, many=True)
+                return Response(sanitizer.data, status=status.HTTP_200_OK)
+            elif search_parameter == 'no':
+                queryset = Vehicle.objects.filter(driver_id__isnull=True)
+                sanitizer = VehicleFullInfoSerializer(queryset, many=True)
+                return Response(sanitizer.data, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {'error': f'Параметр with_drivers введен неправильно, доступимые значения yes/no, получено: {search_parameter}'},
+                    status=status.HTTP_400_BAD_REQUEST)
+
+        else:
+            queryset = Vehicle.objects.all()
+            serializer = VehicleShortInfoSerializer(queryset, many=True)
+            return Response(serializer.data)
+
+class VehicleView(APIView):
+    http_method_names = ['get']
