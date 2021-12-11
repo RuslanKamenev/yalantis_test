@@ -23,7 +23,7 @@ class DriverFullInfoSerializer(serializers.ModelSerializer):
 class VehicleShortInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicle
-        fields = ['id', 'make', 'model', 'plate_number']
+        fields = ['id', 'make', 'model', 'plate_number', 'driver_id']
 
 
 class VehicleFullInfoSerializer(serializers.ModelSerializer):

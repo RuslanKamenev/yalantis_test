@@ -11,7 +11,7 @@ import datetime
 # Работа со всеми водителями, добавление водителя.
 class DriversView(APIView):
     http_method_names = ['get', 'post']
-    DATE_VALIDATION_REGEX = '(3[01]|[12][0-9]|0?[1-9])-(1[0-2]|0?[1-9])-([0-9]{4})$'
+    DATE_VALIDATION_REGEX = '^(3[01]|[12][0-9]|0?[1-9])-(1[0-2]|0?[1-9])-([0-9]{4})$'
 
 # Возвращает весь список водителей
 # Если в качестве URL параметра указан created_at__gte=dd-mm-YYYY, водителей созданных после указанной даты
@@ -50,9 +50,9 @@ class DriversView(APIView):
                 first_name=request.data[0]['first_name'],
                 last_name=request.data[0]['last_name'])
             if created:
-                return Response({'success': 'Пользователь успешно добавлен'}, status=status.HTTP_200_OK)
+                return Response({'success': 'Водитель успешно добавлен'}, status=status.HTTP_200_OK)
             else:
-                return Response({'error': 'Пользователь с таким именем уже существует'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Водитель с таким именем уже существует'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({'error': 'Неправильно введены поля'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -83,9 +83,9 @@ class DriverView(APIView):
                         first_name=request.data[0]['first_name'],
                         last_name=request.data[0]['last_name'])
                     if update:
-                        return Response({'success': 'Пользователь успешно изменен'}, status=status.HTTP_200_OK)
+                        return Response({'success': 'Водитель успешно изменен'}, status=status.HTTP_200_OK)
                     else:
-                        return Response({'error': 'Пользователь с таким именем уже существует'}, status=status.HTTP_400_BAD_REQUEST)
+                        return Response({'error': 'Водитель с таким именем и фамилией уже существует'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({'error': f"Водитель с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -103,7 +103,7 @@ class DriverView(APIView):
 
 class VehiclesView(APIView):
     http_method_names = ['get', 'post']
-    VEHICLE_VALIDATION_REGEX = '([A-Z{2}] [0-9]{4} [A-Z]{2})$'
+    VEHICLE_VALIDATION_REGEX = '^([A-Z]{2} [0-9]{4} [A-Z]{2})$'
 
 # Возвращает весь список автомобилей
 # Если в качестве URL параметра указан with_drivers=yes, автомобилей с водителями
@@ -121,7 +121,7 @@ class VehiclesView(APIView):
                 return Response(sanitizer.data, status=status.HTTP_200_OK)
             else:
                 return Response(
-                    {'error': f'Параметр with_drivers введен неправильно, доступимые значения yes/no, получено: {search_parameter}'},
+                    {'error': f'Параметр with_drivers введен неправильно, доступимые значения yes/no, получено: {search_parameter} или нет водителей с авто'},
                     status=status.HTTP_400_BAD_REQUEST)
 
         else:
@@ -132,7 +132,7 @@ class VehiclesView(APIView):
 # Добавление нового автомобиля
     def post(self, request):
         serializer = VehicleShortInfoSerializer(data=request.data, many=True)
-        if serializer.is_valid():
+        if serializer.is_valid() and re.search(self.VEHICLE_VALIDATION_REGEX, request.data[0]['plate_number']):
             if Vehicle.objects.filter(plate_number=request.data[0]['plate_number']):
                 return Response({'error': 'Автомобиль с указаным номером уже есть в БД'}, status=status.HTTP_400_BAD_REQUEST)
             obj, created = Vehicle.objects.get_or_create(
@@ -144,7 +144,7 @@ class VehiclesView(APIView):
             else:
                 return Response({'error': 'Ошибка'}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response({'error': 'Неправильно введены поля'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Неправильно введены поля или данные в полях'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class VehicleView(APIView):
@@ -159,6 +159,24 @@ class VehicleView(APIView):
         else:
             return Response({'error': f"Автомобиль с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
 
+# Обновление данных о автомобиле по id
+    def update(self, request, pk):
+        if Vehicle.objects.filter(id=pk):
+            serializer = VehicleShortInfoSerializer(data=request.data, many=True)
+            if serializer.is_valid():
+                if Vehicle.objects.filter(plate_number=request.data[0]['plate_number']):
+                    return Response({'error': 'Автомобиль с указаными номерами уже существует'}, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    update = Vehicle.objects.filter(id=pk).update(
+                        make=request.data[0]['make'],
+                        model=request.data[0]['model'],
+                        plate_number=request.data[0]['plate_number'])
+                    if update:
+                        return Response({'success': 'Пользователь успешно изменен'}, status=status.HTTP_200_OK)
+                    else:
+                        return Response({'error': 'Пользователь с таким именем уже существует'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({'error': f"Водитель с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
 
 # Удаление автомобиля из БД по id
     def delete(self, request, pk):
@@ -170,3 +188,27 @@ class VehicleView(APIView):
                 return Response({'error': 'Ошибка удаления'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({'error': f"Автомобиль с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SetDriver(APIView):
+    http_method_names = ['post']
+
+# Добавление или удаление driver_id к автомобилю
+    def post(self, request, pk):
+        if 'id' in request.data[0] and Driver.objects.filter(id=request.data[0]['id']):
+            vehicle_data = Vehicle.objects.filter(id=pk)
+            driver_id = request.data[0]['id']
+            if vehicle_data:
+                serializer = VehicleFullInfoSerializer(vehicle_data, many=True)
+                if driver_id == serializer.data[0]['driver_id']:
+                    update = Vehicle.objects.filter(id=pk).update(driver_id=None)
+                    return Response({'success': 'Водитель высажен из автомобиля'}, status=status.HTTP_200_OK)
+                else:
+                    update = Vehicle.objects.filter(id=pk).update(driver_id=driver_id)
+                    return Response({'success': 'Водитель добавлен в автомобиль'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': f'Автомобиль с id={pk} не найдено'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response(
+                {'error': f'В запросе не указано id водителя или водителя с таким id в БД не найдено'},
+                status=status.HTTP_400_BAD_REQUEST)
