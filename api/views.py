@@ -89,30 +89,35 @@ class DriverView(APIView):
         else:
             return Response({'error': f"Водитель с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
 
-# Удаление водителя из БД
+# Удаление водителя из БД по id
     def delete(self, request, pk):
-        if Driver.objects.filter(id=pk).delete():
-            return Response({'success': f"Водитель с id={pk} успешно удален"}, status=status.HTTP_200_OK)
+        queryset = Driver.objects.filter(id=pk)
+        if queryset:
+            if Driver.objects.filter(id=pk).delete():
+                return Response({'success': f"Водитель с id={pk} успешно удален"}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Ошибка удаления'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({'error': f"Водитель с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class VehiclesView(APIView):
-    http_method_names = ['get']
+    http_method_names = ['get', 'post']
+    VEHICLE_VALIDATION_REGEX = '([A-Z{2}] [0-9]{4} [A-Z]{2})$'
 
 # Возвращает весь список автомобилей
 # Если в качестве URL параметра указан with_drivers=yes, автомобилей с водителями
 # Если в качестве URL параметра указан with_drivers=yes, автомобилей без водителя
     def get(self, request):
+        queryset = False
         if 'with_drivers' in request.query_params:
             search_parameter = request.query_params['with_drivers'].strip()
             if search_parameter == 'yes':
                 queryset = Vehicle.objects.filter(driver_id__isnull=False)
-                sanitizer = VehicleFullInfoSerializer(queryset, many=True)
-                return Response(sanitizer.data, status=status.HTTP_200_OK)
             elif search_parameter == 'no':
                 queryset = Vehicle.objects.filter(driver_id__isnull=True)
-                sanitizer = VehicleFullInfoSerializer(queryset, many=True)
+            sanitizer = VehicleFullInfoSerializer(queryset, many=True)
+            if queryset:
                 return Response(sanitizer.data, status=status.HTTP_200_OK)
             else:
                 return Response(
@@ -122,7 +127,46 @@ class VehiclesView(APIView):
         else:
             queryset = Vehicle.objects.all()
             serializer = VehicleShortInfoSerializer(queryset, many=True)
-            return Response(serializer.data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+# Добавление нового автомобиля
+    def post(self, request):
+        serializer = VehicleShortInfoSerializer(data=request.data, many=True)
+        if serializer.is_valid():
+            if Vehicle.objects.filter(plate_number=request.data[0]['plate_number']):
+                return Response({'error': 'Автомобиль с указаным номером уже есть в БД'}, status=status.HTTP_400_BAD_REQUEST)
+            obj, created = Vehicle.objects.get_or_create(
+                make=request.data[0]['make'],
+                model=request.data[0]['model'],
+                plate_number=request.data[0]['plate_number'])
+            if created:
+                return Response({'success': 'Автомобиль успешно добавлен'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Ошибка'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({'error': 'Неправильно введены поля'}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class VehicleView(APIView):
-    http_method_names = ['get']
+    http_method_names = ['get', 'update', 'delete']
+
+# Получение данных о автомобиле по id
+    def get(self, request, pk):
+        if Vehicle.objects.filter(id=pk):
+            queryset = Vehicle.objects.filter(id=pk)
+            serializer = VehicleFullInfoSerializer(queryset, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': f"Автомобиль с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# Удаление автомобиля из БД по id
+    def delete(self, request, pk):
+        queryset = Vehicle.objects.filter(id=pk)
+        if queryset:
+            if Vehicle.objects.filter(id=pk).delete():
+                return Response({'success': f"Автомобиль с id={pk} успешно удален"}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Ошибка удаления'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({'error': f"Автомобиль с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
