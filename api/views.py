@@ -22,21 +22,19 @@ class DriversView(APIView):
                 search_date = request.query_params['created_at__gte']
                 search_date = datetime.datetime.strptime(search_date, '%d-%m-%Y').strftime('%Y-%m-%d')
                 queryset = Driver.objects.filter(created_at__gte=search_date)
-                serializer = DriverNameSerializer(queryset, many=True)
+                serializer = DriverFullInfoSerializer(queryset, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'Дата поиска введена неправильно, требуемый формат даты d-m-Y'}, status=status.HTTP_400_BAD_REQUEST)
-
         if 'created_at__lte' in request.query_params:
             if re.search(self.DATE_VALIDATION_REGEX, request.query_params['created_at__lte']):
                 search_date = request.query_params['created_at__lte']
                 search_date = datetime.datetime.strptime(search_date, '%d-%m-%Y').strftime('%Y-%m-%d')
                 queryset = Driver.objects.filter(created_at__lte=search_date)
-                serializer = DriverNameSerializer(queryset, many=True)
+                serializer = DriverFullInfoSerializer(queryset, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'Дата поиска введена неправильно, требуемый формат даты d-m-Y'}, status=status.HTTP_400_BAD_REQUEST)
-
         else:
             queryset = Driver.objects.all()
             serializer = DriverNameSerializer(queryset, many=True)
@@ -45,6 +43,7 @@ class DriversView(APIView):
 # Добавление нового водителя
     def post(self, request):
         serializer = DriverNameSerializer(data=request.data, many=True)
+
         if serializer.is_valid():
             obj, created = Driver.objects.get_or_create(
                 first_name=request.data[0]['first_name'],
@@ -69,7 +68,7 @@ class DriverView(APIView):
         else:
             return Response({'error': f"Водитель с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
 
-# Обновление имени и фамилии водителя, если водителя с таким именем нет в БД
+# Обновление имени и фамилии водителя по id, если водителя с указанными именем и фамилией нет в БД
     def update(self, request, pk):
         if Driver.objects.filter(id=pk):
             serializer = DriverNameSerializer(data=request.data, many=True)
@@ -172,9 +171,9 @@ class VehicleView(APIView):
                         model=request.data[0]['model'],
                         plate_number=request.data[0]['plate_number'])
                     if update:
-                        return Response({'success': 'Пользователь успешно изменен'}, status=status.HTTP_200_OK)
+                        return Response({'success': 'Информация о автомобиле успешно изменена'}, status=status.HTTP_200_OK)
                     else:
-                        return Response({'error': 'Пользователь с таким именем уже существует'}, status=status.HTTP_400_BAD_REQUEST)
+                        return Response({'error': 'Ошибка при обновлении информации'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({'error': f"Водитель с id={pk} не найден"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -195,20 +194,23 @@ class SetDriver(APIView):
 
 # Добавление или удаление driver_id к автомобилю
     def post(self, request, pk):
-        if 'id' in request.data[0] and Driver.objects.filter(id=request.data[0]['id']):
-            vehicle_data = Vehicle.objects.filter(id=pk)
-            driver_id = request.data[0]['id']
-            if vehicle_data:
-                serializer = VehicleFullInfoSerializer(vehicle_data, many=True)
-                if driver_id == serializer.data[0]['driver_id']:
-                    update = Vehicle.objects.filter(id=pk).update(driver_id=None)
-                    return Response({'success': 'Водитель высажен из автомобиля'}, status=status.HTTP_200_OK)
+        if request.data:
+            if 'id' in request.data[0] and Driver.objects.filter(id=request.data[0]['id']):
+                vehicle_data = Vehicle.objects.filter(id=pk)
+                driver_id = int(request.data[0]['id'])
+                if vehicle_data:
+                    serializer = VehicleFullInfoSerializer(vehicle_data, many=True)
+                    if driver_id == serializer.data[0]['driver_id']:
+                        update = Vehicle.objects.filter(id=pk).update(driver_id=None)
+                        return Response({'success': 'Водитель высажен из автомобиля'}, status=status.HTTP_200_OK)
+                    else:
+                        update = Vehicle.objects.filter(id=pk).update(driver_id=driver_id)
+                        return Response({'success': 'Водитель добавлен в автомобиль'}, status=status.HTTP_200_OK)
                 else:
-                    update = Vehicle.objects.filter(id=pk).update(driver_id=driver_id)
-                    return Response({'success': 'Водитель добавлен в автомобиль'}, status=status.HTTP_200_OK)
+                    return Response({'error': f'Автомобиль с id={pk} не найдено'}, status=status.HTTP_400_BAD_REQUEST)
             else:
-                return Response({'error': f'Автомобиль с id={pk} не найдено'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {'error': f'В запросе не указано id водителя или водителя с таким id в БД не найдено'},
+                    status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response(
-                {'error': f'В запросе не указано id водителя или водителя с таким id в БД не найдено'},
-                status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Не получено никаких данных'}, status=status.HTTP_400_BAD_REQUEST)
