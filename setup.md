@@ -12,14 +12,26 @@ sqlite 3.34.0
 
 Возможно использование виртуальной среды:
 1. Устанока инструмента virtualenv при помощи pip:
-`$ pip install virtualen`v
+```bash
+$ pip install virtualen
+```
 2. Создание новой виртуальной среды внутри каталога:
-`$ python3 -m venv env`
+```bash
+$ python3 -m venv env
+```
 3. Активация виртуальной среды:
-`source env/bin/activate`
+```bash
+source env/bin/activate
+```
 4. Скопировать проект в необходимую дерикторию:
-`$ git clone https://github.com/RuslanKamenev/yalantis_test.git`
+```bash
+$ git clone https://github.com/RuslanKamenev/yalantis_test.git
+```
 5. Установить в виртуальное окружение зависимости из requirements.txt:
-`$ pip install -r /<path>/requirements.txt`
+```bash
+$ pip install -r /<path>/requirements.txt
+```
 6. Запустить проект
-`$ python manage.py runserver`
+```bash
+$ python manage.py runserver
+```
