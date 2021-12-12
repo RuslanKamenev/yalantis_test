@@ -7,11 +7,13 @@ Python 3.10.0
 **Frameworks:**
 
 Django 3.2.9
+
 Rest framework 3.12.4
 
 **Database:**
 
 sqlite 3.34.0
+
 
 Возможно использование виртуальной среды:
 1. Устанока инструмента virtualenv при помощи pip:
